@@ -1,9 +1,14 @@
-#include <stdbool.h> 
+#include <stdbool.h>
+#include "writeBMP.h"
+#include "readBMP.h"
+#include <stdlib.h>
+#define KERNEL_SIZE 3
+
 
 typedef struct {
-   unsigned char red;
-   unsigned char green;
-   unsigned char blue;
+   unsigned short red;
+   unsigned short green;
+   unsigned short blue;
 } pixel;
 
 typedef struct {
@@ -139,11 +144,309 @@ static pixel applyKernel(int dim, int i, int j, pixel *src, int kernelSize, int 
 void smooth(int dim, pixel *src, pixel *dst, int kernelSize, int kernel[kernelSize][kernelSize], int kernelScale, bool filter) {
 
 	int i, j;
-	for (i = kernelSize / 2 ; i < dim - kernelSize / 2; i++) {
-		for (j =  kernelSize / 2 ; j < dim - kernelSize / 2 ; j++) {
+	for (i = 1 ; i < dim - 1; i++) {
+		for (j =  1 ; j < dim - 1 ; j++) {
 			dst[calcIndex(i, j, dim)] = applyKernel(dim, i, j, src, kernelSize, kernel, kernelScale, filter);
 		}
 	}
+}
+
+void blurKernelSmoothWithoutFilter9(int dim, pixel* src, pixel* dst){
+    int row, col;
+    int b, r, g;
+
+    //row 0
+    for(col = 1; col < dim - 1; ++col){
+        //initialize also
+        dst[dim + col].blue = (src[col - 1].blue + src[col].blue + src[col + 1].blue);
+        dst[dim + col].red = (src[col - 1].red + src[col].red + src[col + 1].red);
+        dst[dim + col].green = (src[col - 1].green + src[col].green + src[col + 1].green);
+    }
+
+    //row 1
+    for(col = 1; col < dim - 1; ++col){
+        b = (src[dim + col -1].blue + src[dim + col].blue + src[dim + col + 1].blue);
+        r = (src[dim + col -1].red + src[dim + col].red + src[dim + col + 1].red);
+        g = (src[dim + col -1].green + src[dim + col].green + src[dim + col + 1].green);
+        //add the value
+        dst[dim + col].blue += b;
+        dst[dim + col].red += r;
+        dst[dim + col].green += g;
+        //initialize also
+        dst[2*dim + col].blue = b;
+        dst[2*dim + col].red = r;
+        dst[2*dim + col].green = g;
+    }
+
+    //rows 2 - (dim-3)
+    for(row = 2; row <= dim - 3; ++row){
+        for(col = 1; col < dim - 1; ++col){
+          b = (src[row*dim + col - 1].blue + src[row*dim + col].blue + src[row*dim + col + 1].blue);
+          g = (src[row*dim + col - 1].green + src[row*dim + col].green + src[row*dim + col + 1].green);
+          r = (src[row*dim + col - 1].red + src[row*dim + col].red + src[row*dim + col + 1].red);
+          //add the value
+          dst[(row-1)*dim + col].blue += b;
+          dst[(row-1)*dim + col].red += r;
+          dst[(row-1)*dim + col].green += g;
+          //close
+          dst[(row-1)*dim + col].blue /= 9;
+          dst[(row-1)*dim + col].red /= 9;
+          dst[(row-1)*dim + col].green /= 9;
+          //add the value
+          dst[row*dim + col].blue += b;
+          dst[row*dim + col].red += r;
+          dst[row*dim + col].green += g;
+          //initialize also
+          dst[(row+1)*dim + col].blue = b;
+          dst[(row+1)*dim + col].red = r;
+          dst[(row+1)*dim + col].green = g;
+        }
+    }
+    //row = dim -2;
+    for(col = 1; col < dim -1; ++col){
+        b = (src[(dim - 2)*dim + col -1].blue + src[(dim - 2)*dim + col].blue + src[(dim - 2)*dim + col + 1].blue);
+        r = (src[(dim - 2)*dim + col -1].red + src[(dim - 2)*dim + col].red + src[(dim - 2)*dim + col + 1].red);
+        g = (src[(dim - 2)*dim + col -1].green + src[(dim - 2)*dim + col].green + src[(dim - 2)*dim + col + 1].green);
+        //add the value
+        dst[(dim - 3)*dim + col].blue += b;
+        dst[(dim - 3)*dim + col].red += r;
+        dst[(dim - 3)*dim + col].green += g;
+        //close
+        dst[(dim - 3)*dim + col].blue /= 9;
+        dst[(dim - 3)*dim + col].red /= 9;
+        dst[(dim - 3)*dim + col].green /= 9;
+        //add the value
+        dst[(dim - 2)*dim + col].blue += b;
+        dst[(dim - 2)*dim + col].red += r;
+        dst[(dim - 2)*dim + col].green += g;
+    }
+    //row = dim - 1
+    for(col = 1; col < dim -1; ++col){
+        dst[(dim - 2)*dim + col].blue += (src[(dim - 1)*dim + col - 1].blue + src[(dim - 1)*dim + col].blue + src[(dim - 1)*dim + col + 1].blue);
+        dst[(dim - 2)*dim + col].red += (src[(dim - 1)*dim + col - 1].red + src[(dim - 1)*dim + col].red + src[(dim - 1)*dim + col + 1].red);
+        dst[(dim - 2)*dim + col].green += (src[(dim - 1)*dim + col - 1].green + src[(dim - 1)*dim + col].green + src[(dim - 1)*dim + col + 1].green);
+        //close
+        dst[(dim - 2)*dim + col].blue /= 9;
+        dst[(dim - 2)*dim + col].red /= 9;
+        dst[(dim - 2)*dim + col].green /= 9;
+    }
+}
+
+void blurKernelSmoothWithFilter7(int dim, pixel* src, pixel* dst) {
+    int row, col;
+    int b, r, g;
+
+    //row 0
+    for (col = 1; col < dim - 1; ++col) {
+        //initialize also
+        dst[dim + col].blue = (src[col - 1].blue + src[col].blue + src[col + 1].blue);
+        dst[dim + col].red = (src[col - 1].red + src[col].red + src[col + 1].red);
+        dst[dim + col].green = (src[col - 1].green + src[col].green + src[col + 1].green);
+    }
+
+    //row 1
+    for (col = 1; col < dim - 1; ++col) {
+        b = (src[dim + col - 1].blue + src[dim + col].blue + src[dim + col + 1].blue);
+        r = (src[dim + col - 1].red + src[dim + col].red + src[dim + col + 1].red);
+        g = (src[dim + col - 1].green + src[dim + col].green + src[dim + col + 1].green);
+        //add the value
+        dst[dim + col].blue += b;
+        dst[dim + col].red += r;
+        dst[dim + col].green += g;
+        //initialize also
+        dst[2 * dim + col].blue = b;
+        dst[2 * dim + col].red = r;
+        dst[2 * dim + col].green = g;
+    }
+
+    //rows 2 - (dim-3)
+    for (row = 2; row <= dim - 3; ++row) {
+        for (col = 1; col < dim - 1; ++col) {
+            b = (src[row * dim + col - 1].blue + src[row * dim + col].blue + src[row * dim + col + 1].blue);
+            g = (src[row * dim + col - 1].green + src[row * dim + col].green + src[row * dim + col + 1].green);
+            r = (src[row * dim + col - 1].red + src[row * dim + col].red + src[row * dim + col + 1].red);
+            //add the value
+            dst[(row - 1) * dim + col].blue += b;
+            dst[(row - 1) * dim + col].red += r;
+            dst[(row - 1) * dim + col].green += g;
+            //add the value
+            dst[row * dim + col].blue += b;
+            dst[row * dim + col].red += r;
+            dst[row * dim + col].green += g;
+            //initialize also
+            dst[(row + 1) * dim + col].blue = b;
+            dst[(row + 1) * dim + col].red = r;
+            dst[(row + 1) * dim + col].green = g;
+        }
+    }
+    //row = dim -2;
+    for (col = 1; col < dim - 1; ++col) {
+        b = (src[(dim - 2) * dim + col - 1].blue + src[(dim - 2) * dim + col].blue + src[(dim - 2) * dim + col + 1].blue);
+        r = (src[(dim - 2) * dim + col - 1].red + src[(dim - 2) * dim + col].red + src[(dim - 2) * dim + col + 1].red);
+        g = (src[(dim - 2) * dim + col - 1].green + src[(dim - 2) * dim + col].green + src[(dim - 2) * dim + col + 1].green);
+        //add the value
+        dst[(dim - 3) * dim + col].blue += b;
+        dst[(dim - 3) * dim + col].red += r;
+        dst[(dim - 3) * dim + col].green += g;
+        //add the value
+        dst[(dim - 2) * dim + col].blue += b;
+        dst[(dim - 2) * dim + col].red += r;
+        dst[(dim - 2) * dim + col].green += g;
+    }
+    //row = dim - 1
+    for (col = 1; col < dim - 1; ++col) {
+        dst[(dim - 2) * dim + col].blue += (src[(dim - 1) * dim + col - 1].blue + src[(dim - 1) * dim + col].blue +
+                                           src[(dim - 1) * dim + col + 1].blue);
+        dst[(dim - 2) * dim + col].red += (src[(dim - 1) * dim + col - 1].red + src[(dim - 1) * dim + col].red +
+                                          src[(dim - 1) * dim + col + 1].red);
+        dst[(dim - 2) * dim + col].green += (src[(dim - 1) * dim + col - 1].green + src[(dim - 1) * dim + col].green +
+                                            src[(dim - 1) * dim + col + 1].green);
+    }
+
+    int ii, jj,min_intensity, max_intensity, min_row, max_row, min_col, max_col;
+    pixel loop_pixel;
+    for (int i = 1; i < dim - 1; i++){
+        for(int j = 1; j < dim -1; j++){
+            for(ii = i-1; ii <= i+1; ii++){
+                for(jj = j-1 ; jj <= j+1 ; jj++) {
+                    // check if smaller than min or higher than max and update
+                    loop_pixel = src[calcIndex(ii, jj, dim)];
+                    if ((((int) loop_pixel.red) + ((int) loop_pixel.green) + ((int) loop_pixel.blue)) <= min_intensity) {
+                        min_intensity = (((int) loop_pixel.red) + ((int) loop_pixel.green) + ((int) loop_pixel.blue));
+                        min_row = ii;
+                        min_col = jj;
+                    }
+                    if ((((int) loop_pixel.red) + ((int) loop_pixel.green) + ((int) loop_pixel.blue)) > max_intensity) {
+                        max_intensity = (((int) loop_pixel.red) + ((int) loop_pixel.green) + ((int) loop_pixel.blue));
+                        max_row = ii;
+                        max_col = jj;
+                    }
+                }
+            }
+            // filter out min and max
+            dst[i*dim + j].red -= (src[min_row*dim + min_col].red + src[max_row*dim + max_col].red);
+            dst[i*dim + j].blue -= (src[min_row*dim + min_col].blue + src[max_row*dim + max_col].blue);
+            dst[i*dim + j].green -= (src[min_row*dim + min_col].green + src[max_row*dim + max_col].green);
+            dst[i*dim + j].red /= 7;
+            dst[i*dim + j].blue /= 7;
+            dst[i*dim + j].green /= 7;
+        }
+    }
+}
+
+void sharpKernelSmoothWithoutFilter(int dim, pixel* src, pixel* dst){
+    int row, col;
+    int b, r, g;
+
+    //row 0
+    for(col = 1; col < dim - 1; ++col){
+        //initialize also
+        dst[dim + col].blue = - src[col - 1].blue - src[col].blue - src[col + 1].blue;
+        dst[dim + col].red = - src[col - 1].red - src[col].red - src[col + 1].red;
+        dst[dim + col].green = - src[col - 1].green - src[col].green - src[col + 1].green;
+    }
+
+    //row 1
+    for(col = 1; col < dim - 1; ++col){
+        b = - src[dim + col -1].blue - src[dim + col].blue - src[dim + col + 1].blue;
+        r = - src[dim + col -1].red - src[dim + col].red - src[dim + col + 1].red;
+        g = - src[dim + col -1].green - src[dim + col].green - src[dim + col + 1].green;
+        //add the value
+        dst[dim + col].blue += b + 10 * src[dim + col].blue;
+        dst[dim + col].red += r + 10 * src[dim + col].red;
+        dst[dim + col].green += g + 10 * src[dim + col].green;
+        //initialize also
+        dst[2*dim + col].blue = b;
+        dst[2*dim + col].red = r;
+        dst[2*dim + col].green = g;
+    }
+
+    //rows 2 - (dim-3)
+    for(row = 2; row <= dim - 3; ++row){
+        for(col = 1; col < dim - 1; ++col){
+            b = - src[row*dim + col - 1].blue - src[row*dim + col].blue - src[row*dim + col + 1].blue;
+            g = - src[row*dim + col - 1].green - src[row*dim + col].green - src[row*dim + col + 1].green;
+            r = - src[row*dim + col - 1].red - src[row*dim + col].red - src[row*dim + col + 1].red;
+            //add the value
+            dst[(row-1)*dim + col].blue += b;
+            dst[(row-1)*dim + col].red += r;
+            dst[(row-1)*dim + col].green += g;
+            //check if the value between 0 and 255
+            if (dst[(row-1)*dim + col].blue < 0)
+                dst[(row-1)*dim + col].blue = 0;
+            else if (dst[(row-1)*dim + col].blue > 255)
+                dst[(row-1)*dim + col].blue = 255;
+
+            if (dst[(row-1)*dim + col].red < 0)
+                dst[(row-1)*dim + col].red = 0;
+            else if (dst[(row-1)*dim + col].red > 255)
+                dst[(row-1)*dim + col].red = 255;
+
+            if (dst[(row-1)*dim + col].red < 0)
+                dst[(row-1)*dim + col].red = 0;
+            else if (dst[(row-1)*dim + col].red > 255)
+                dst[(row-1)*dim + col].red = 255;
+            //add the value + 10* the same
+            dst[row*dim + col].blue += b + 10*src[row*dim + col].blue;
+            dst[row*dim + col].red += r + 10*src[row*dim + col].red;
+            dst[row*dim + col].green += g + 10*src[row*dim + col].green;
+            //initialize also
+            dst[(row+1)*dim + col].blue = b;
+            dst[(row+1)*dim + col].red = r;
+            dst[(row+1)*dim + col].green = g;
+        }
+    }
+    //row = dim -2;
+    for(col = 1; col < dim -1; ++col){
+        b =  - src[(dim - 2)*dim + col -1].blue - src[(dim - 2)*dim + col].blue - src[(dim - 2)*dim + col + 1].blue;
+        r =  - src[(dim - 2)*dim + col -1].red - src[(dim - 2)*dim + col].red - src[(dim - 2)*dim + col + 1].red;
+        g =  - src[(dim - 2)*dim + col -1].green - src[(dim - 2)*dim + col].green - src[(dim - 2)*dim + col + 1].green;
+        //add the value
+        dst[(dim - 3)*dim + col].blue += b;
+        dst[(dim - 3)*dim + col].red += r;
+        dst[(dim - 3)*dim + col].green += g;
+        //close
+        if (dst[(dim -3)*dim + col].blue < 0)
+            dst[(dim -3)*dim + col].blue = 0;
+        else if (dst[(dim -3)*dim + col].blue > 255)
+            dst[(dim -3)*dim + col].blue = 255;
+
+        if (dst[(dim -3)*dim + col].red < 0)
+            dst[(dim -3)*dim + col].red = 0;
+        else if (dst[(dim -3)*dim + col].red > 255)
+            dst[(dim -3)*dim + col].red = 255;
+
+        if (dst[(dim -3)*dim + col].red < 0)
+            dst[(dim -3)*dim + col].red = 0;
+        else if (dst[(dim -3)*dim + col].red > 255)
+            dst[(dim -3)*dim + col].red = 255;
+        //add the value
+        dst[(dim - 2)*dim + col].blue += b + 10 * src[(dim - 2)*dim + col].blue;
+        dst[(dim - 2)*dim + col].red += r + 10 * src[(dim - 2)*dim + col].red;
+        dst[(dim - 2)*dim + col].green += g + 10 * src[(dim - 2)*dim + col].green;
+    }
+    //row = dim - 1
+    for(col = 1; col < dim -1; ++col){
+        dst[(dim - 2)*dim + col].blue +=  - src[(dim - 1)*dim + col - 1].blue - src[(dim - 1)*dim + col].blue - src[(dim - 1)*dim + col + 1].blue;
+        dst[(dim - 2)*dim + col].red += - src[(dim - 1)*dim + col - 1].red - src[(dim - 1)*dim + col].red - src[(dim - 1)*dim + col + 1].red;
+        dst[(dim - 2)*dim + col].green += - src[(dim - 1)*dim + col - 1].green - src[(dim - 1)*dim + col].green - src[(dim - 1)*dim + col + 1].green;
+        //close
+        if (dst[(dim -2)*dim + col].blue < 0)
+            dst[(dim -2)*dim + col].blue = 0;
+        else if (dst[(dim -2)*dim + col].blue > 255)
+            dst[(dim -2)*dim + col].blue = 255;
+
+        if (dst[(dim -2)*dim + col].red < 0)
+            dst[(dim -2)*dim + col].red = 0;
+        else if (dst[(dim -2)*dim + col].red > 255)
+            dst[(dim -2)*dim + col].red = 255;
+
+        if (dst[(dim -2)*dim + col].red < 0)
+            dst[(dim -2)*dim + col].red = 0;
+        else if (dst[(dim -2)*dim + col].red > 255)
+            dst[(dim -2)*dim + col].red = 255;
+
+    }
 }
 
 void charsToPixels(Image *charsImg, pixel* pixels) {
@@ -152,9 +455,9 @@ void charsToPixels(Image *charsImg, pixel* pixels) {
 	for (row = 0 ; row < m ; row++) {
 		for (col = 0 ; col < n ; col++) {
 
-			pixels[row*n + col].red = image->data[3*row*n + 3*col];
-			pixels[row*n + col].green = image->data[3*row*n + 3*col + 1];
-			pixels[row*n + col].blue = image->data[3*row*n + 3*col + 2];
+			pixels[row*n + col].red = (unsigned char) image->data[3*row*n + 3*col];
+			pixels[row*n + col].green = (unsigned char) image->data[3*row*n + 3*col + 1];
+			pixels[row*n + col].blue = (unsigned char) image->data[3*row*n + 3*col + 2];
 		}
 	}
 }
@@ -187,18 +490,63 @@ void copyPixels(pixel* src, pixel* dst) {
 
 void doConvolution(Image *image, int kernelSize, int kernel[kernelSize][kernelSize], int kernelScale, bool filter) {
 
-	pixel* pixelsImg = malloc(m*n*sizeof(pixel));
-	pixel* backupOrg = malloc(m*n*sizeof(pixel));
+    pixel* pixelsImg = (pixel*)malloc(m*n*sizeof(pixel));
+    pixel* backupOrg = (pixel*)malloc(m*n*sizeof(pixel));
+
+    charsToPixels(image, pixelsImg);
+    copyPixels(pixelsImg, backupOrg);
+
+    smooth(m, backupOrg, pixelsImg, kernelSize, kernel, kernelScale, filter);
+
+    pixelsToChars(pixelsImg, image);
+
+    free(pixelsImg);
+    free(backupOrg);
+}
+
+void doConvolutionBlur9(Image *image) {
+
+	pixel* pixelsImg = (pixel*)malloc(m*n*sizeof(pixel));
+	pixel* backupOrg = (pixel*)malloc(m*n*sizeof(pixel));
 
 	charsToPixels(image, pixelsImg);
 	copyPixels(pixelsImg, backupOrg);
 
-	smooth(m, backupOrg, pixelsImg, kernelSize, kernel, kernelScale, filter);
-
+    blurKernelSmoothWithoutFilter9(m, backupOrg, pixelsImg);
 	pixelsToChars(pixelsImg, image);
 
 	free(pixelsImg);
 	free(backupOrg);
+}
+
+void doConvolutionBlur7(Image *image) {
+
+    pixel* pixelsImg = (pixel*)malloc(m*n*sizeof(pixel));
+    pixel* backupOrg = (pixel*)malloc(m*n*sizeof(pixel));
+
+    charsToPixels(image, pixelsImg);
+    copyPixels(pixelsImg, backupOrg);
+
+    blurKernelSmoothWithFilter7(m, backupOrg, pixelsImg);
+    pixelsToChars(pixelsImg, image);
+
+    free(pixelsImg);
+    free(backupOrg);
+}
+
+void doConvolutionSharp(Image *image) {
+
+    pixel* pixelsImg = (pixel*)malloc(m*n*sizeof(pixel));
+    pixel* backupOrg = (pixel*)malloc(m*n*sizeof(pixel));
+
+    charsToPixels(image, pixelsImg);
+    copyPixels(pixelsImg, backupOrg);
+
+    sharpKernelSmoothWithoutFilter(m, backupOrg, pixelsImg);
+    pixelsToChars(pixelsImg, image);
+
+    free(pixelsImg);
+    free(backupOrg);
 }
 
 void myfunction(Image *image, char* srcImgpName, char* blurRsltImgName, char* sharpRsltImgName, char* filteredBlurRsltImgName, char* filteredSharpRsltImgName, char flag) {
@@ -208,36 +556,36 @@ void myfunction(Image *image, char* srcImgpName, char* blurRsltImgName, char* sh
 	* [1, 1, 1]
 	* [1, 1, 1]
 	*/
-	int blurKernel[3][3] = {{1, 1, 1}, {1, 1, 1}, {1, 1, 1}};
+	//int blurKernel[3][3] = {{1, 1, 1}, {1, 1, 1}, {1, 1, 1}};
 
 	/*
 	* [-1, -1, -1]
 	* [-1, 9, -1]
 	* [-1, -1, -1]
 	*/
-	int sharpKernel[3][3] = {{-1,-1,-1},{-1,9,-1},{-1,-1,-1}};
+	//int sharpKernel[3][3] = {{-1,-1,-1},{-1,9,-1},{-1,-1,-1}};
 
 	if (flag == '1') {	
 		// blur image
-		doConvolution(image, 3, blurKernel, 9, false);
+        doConvolutionBlur9(image);
 
 		// write result image to file
 		writeBMP(image, srcImgpName, blurRsltImgName);	
 
 		// sharpen the resulting image
-		doConvolution(image, 3, sharpKernel, 1, false);
-		
+        doConvolutionSharp(image);
+
 		// write result image to file
 		writeBMP(image, srcImgpName, sharpRsltImgName);	
 	} else {
 		// apply extermum filtered kernel to blur image
-		doConvolution(image, 3, blurKernel, 7, true);
+        doConvolutionBlur7(image);
 
 		// write result image to file
 		writeBMP(image, srcImgpName, filteredBlurRsltImgName);
 
 		// sharpen the resulting image
-		doConvolution(image, 3, sharpKernel, 1, false);
+        doConvolutionSharp(image);
 
 		// write result image to file
 		writeBMP(image, srcImgpName, filteredSharpRsltImgName);	
