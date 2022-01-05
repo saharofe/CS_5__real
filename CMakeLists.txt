@@ -3,4 +3,4 @@ project(CS_5__real C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_library(CS_5__real Makefile myfunction.c)
+add_library(CS_5__real Makefile myfunction.c showBMP.c readBMP.c readBMP.h)
