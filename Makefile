@@ -1,8 +1,8 @@
 LDLIBS = -lm   -lglut -lGL -lGLU -lX11 -lXmu -lXi -L/usr/X11R6/lib
 
 showBMP: showBMP.o readBMP.o writeBMP.o
-	gcc -g -o MyFuncExe readBMP.o writeBMP.o showBMP.o $(LDLIBS)
-
+	#gcc -g -o MyFuncExe readBMP.o writeBMP.o showBMP.o $(LDLIBS)
+	gcc -Og -pg -o MyFuncExe readBMP.o writeBMP.o showBMP.o $(LDLIBS)
 readBMP.o: readBMP.c readBMP.h
 	gcc -g -o readBMP.o -c readBMP.c
 
